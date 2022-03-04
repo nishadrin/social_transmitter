@@ -2,6 +2,11 @@ import aioredis
 
 
 class RedisQueue:
+    __slots__ = [
+        'url',
+        'connect',
+    ]
+
     def __init__(self, host: str = 'localhost', port: str = '6379',
                  username: str = None, password: str = None,
                  db: int = None) -> None:
