@@ -2,8 +2,10 @@ import asyncio
 import sys
 import argparse
 
-from transmitter.queues.redis import RedisQueue
-from transmitter.senders.telegram import Telegram
+from social_transmitter.transmitter.senders.telegram import Telegram
+
+from social_transmitter.transmitter.queues.redis import RedisQueue
+from social_transmitter.transmitter.services.dispatcher import Dispatcher
 
 
 async def get_code() -> str:
@@ -22,14 +24,19 @@ async def main():
     parser.add_argument('phone', type=str, help='client phone')
     args = parser.parse_args()
 
-    queue = RedisQueue(db=1)
-    await queue()
-    queue_to_listen = RedisQueue(db=2)
-    await queue_to_listen()
+    dispatcher_queue = RedisQueue(db=1)
+    await dispatcher_queue()
 
-    telegram = Telegram(args.id, args.hash, args.phone, queue)
-    await telegram.login(get_code)
-    await telegram.listen(queue)
+    telegram_queue = RedisQueue(db=2)
+    await telegram_queue()
+
+    dispatcher = Dispatcher(dispatcher_queue, telegram_queue)
+    await dispatcher()
+
+    telegram = Telegram(args.id, args.hash, args.phone,
+                        dispatcher_queue, telegram_queue)
+    await telegram()
+    # await telegram.logout()
 
 
 if __name__ == '__main__':
