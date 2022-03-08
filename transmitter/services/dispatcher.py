@@ -19,11 +19,9 @@ class DispatcherHandler:
                 'phone': self.message['phone'],
                 'code': text,
             }
-        if 'user_id' in self.message.keys() and 'text' in self.message.keys():
-            print(f'Клиент с id {self.message["user_id"]}: \
-{self.message["text"]}')
+        if 'username' in self.message.keys() and 'text' in self.message.keys():
             data = {
-                'user_id': self.message["user_id"],
+                'username': self.message["username"],
                 'text': text,
                 'attachment': None,
             }
@@ -38,7 +36,7 @@ class Dispatcher(JsonWrapper):
     def __init__(self, dispatcher_queue, telegram_queue) -> None:
         self.dispatcher_queue = dispatcher_queue
         self.telegram_queue = telegram_queue
-        self._handler = DispatcherHandler
+        self._handler = DispatcherHandler()
 
     async def __call__(self):
         await self.listen()
@@ -65,16 +63,14 @@ class Dispatcher(JsonWrapper):
                 if 'phone' in message.keys():
                     print('Введите код: ')
                 else:
-                    print(f'Введите сообщение для {key}: ')
+                    print(f'Клиент {message["username"]}: {message["text"]}')
+                    print(f'Введите сообщение для {message["username"]}: ')
 
                 text = await self.get_data()
-
                 text = text[:-1] # delete '\n' in the end of line
 
-                handler = DispatcherHandler()
-                data = handler(message, text)
-
-                await self.add_to_queue(key, self.json_dumps(data))
+                self._handler(message, text)
+                await self.add_to_queue(key, self.json_dumps(self._handler.data))
 
     async def add_to_queue(self, name, text) -> None:
         await self.telegram_queue.add(name, text)
