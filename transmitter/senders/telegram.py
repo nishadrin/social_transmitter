@@ -1,4 +1,5 @@
 import asyncio
+import sys
 from typing import Optional
 
 from telethon import events, errors
@@ -40,7 +41,7 @@ class Telegram(JsonWrapper):
                 errors.PhoneCodeExpiredError,
                 errors.PhoneCodeHashEmptyError,
                 errors.PhoneCodeInvalidError) as e:
-            print(e.text)
+            print(e)
             await self.add_to_queue(self.json_dumps({
                 'id': self.id,
                 'hash': self.hash,
@@ -48,9 +49,9 @@ class Telegram(JsonWrapper):
                 'error': 'wrong code',
             }))
             await self.stop()
-            sys.exit()
         except KeyboardInterrupt:
             await self.stop()
+            sys.exit()
         except Exception:
             await self.stop()
             raise Exception
@@ -64,9 +65,12 @@ class Telegram(JsonWrapper):
     async def listen(self) -> None:
         try:
             loop = asyncio.get_event_loop()
-            loop.create_task(self.listen_telegram())
-            loop.create_task(self.listen_queue())
+            telegram = loop.create_task(self.listen_telegram())
+            queue = loop.create_task(self.listen_queue())
+            await telegram
+            await queue
         except Exception:
+            loop.stop()
             loop.close()
             raise Exception
 
@@ -75,7 +79,7 @@ class Telegram(JsonWrapper):
 
         @connect.on(events.NewMessage(incoming=True))
         async def input_handler(event):
-            await self.add_to_queue(self.message_handler(event))
+            await self.add_to_queue(await self.message_handler(event))
 
     async def listen_queue(self) -> Optional[int]:
         while True:
@@ -83,20 +87,21 @@ class Telegram(JsonWrapper):
             _queue, message = _queue.decode(), self.json_loads(message.decode())
             if 'code' in message.keys():
                 return int(message['code'])
-            if 'user_id' in message.keys() and 'text' in message.keys():
-                await self.send_message(int(message['user_id']),
+            if 'username' in message.keys() and 'text' in message.keys():
+                await self.send_message(message['username'],
                                         message['text'])
 
     async def get_messages(self) -> None:  # todo get history of messages
         pass
 
-    async def send_message(self, member, text) -> None:
-        await self.connect.send_message(member, text)
+    async def send_message(self, username, text) -> None:
+        await self.connect.send_message(username, text)
 
-    def message_handler(self, event) -> str:
+    async def message_handler(self, event) -> str:
+        sender = await event.get_sender()
         # todo attachments
         return self.json_dumps({
-            'user_id': event.message.peer_id.user_id,
+            'username': sender.username,
             'text': event.message.text if event.message.text else None,
             'attachment': event.message.file if event.message.file else None,
         })
