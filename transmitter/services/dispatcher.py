@@ -1,8 +1,7 @@
 import asyncio
+import json
 import sys
 from typing import Dict
-
-from social_transmitter.transmitter.services.system import JsonWrapper
 
 
 class DispatcherHandler:
@@ -30,7 +29,7 @@ class DispatcherHandler:
         return self.data
 
 
-class Dispatcher(JsonWrapper):
+class Dispatcher:
     __slots__ = ['dispatcher_queue', 'telegram_queue', ]
 
     def __init__(self, dispatcher_queue, telegram_queue) -> None:
@@ -58,7 +57,7 @@ class Dispatcher(JsonWrapper):
             keys = await self.dispatcher_queue.connect.keys()
             for key in keys:
                 _queue, message = await self.dispatcher_queue.listen(key)
-                _queue, message = _queue.decode(), self.json_loads(message.decode())
+                _queue, message = _queue.decode(), json.loads(message.decode())
 
                 if 'phone' in message.keys():
                     print('Введите код: ')
@@ -70,7 +69,7 @@ class Dispatcher(JsonWrapper):
                 text = text[:-1] # delete '\n' in the end of line
 
                 self._handler(message, text)
-                await self.add_to_queue(key, self.json_dumps(self._handler.data))
+                await self.add_to_queue(key, json.dumps(self._handler.data))
 
     async def add_to_queue(self, name, text) -> None:
         await self.telegram_queue.add(name, text)

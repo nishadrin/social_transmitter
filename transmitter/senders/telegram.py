@@ -1,15 +1,14 @@
 import asyncio
+import json
 import sys
 from typing import Optional
 
 from telethon import events, errors
 
-from social_transmitter.transmitter.senders.own_telethon.telegram_client import \
-    OwnTelegramClient
-from social_transmitter.transmitter.services.system import JsonWrapper
+from .own_telethon.telegram_client import OwnTelegramClient
 
 
-class Telegram(JsonWrapper):
+class Telegram:
     __slots__ = ['id', 'hash', 'phone', 'dispatcher_queue', 'name', 'connect',
                  'telegram_queue']
 
@@ -27,7 +26,7 @@ class Telegram(JsonWrapper):
         await self.listen()
 
     async def get_code(self) -> str:
-        await self.add_to_queue(self.json_dumps({
+        await self.add_to_queue(json.dumps({
             'phone': self.phone,
         }))
         return await self.listen_queue()
@@ -42,7 +41,7 @@ class Telegram(JsonWrapper):
                 errors.PhoneCodeHashEmptyError,
                 errors.PhoneCodeInvalidError) as e:
             print(e)
-            await self.add_to_queue(self.json_dumps({
+            await self.add_to_queue(json.dumps({
                 'id': self.id,
                 'hash': self.hash,
                 'phone': self.phone,
@@ -84,7 +83,7 @@ class Telegram(JsonWrapper):
     async def listen_queue(self) -> Optional[int]:
         while True:
             _queue, message = await self.telegram_queue.listen(self.name)
-            _queue, message = _queue.decode(), self.json_loads(message.decode())
+            _queue, message = _queue.decode(), json.loads(message.decode())
             if 'code' in message.keys():
                 return int(message['code'])
             if 'username' in message.keys() and 'text' in message.keys():
@@ -100,8 +99,9 @@ class Telegram(JsonWrapper):
     async def message_handler(self, event) -> str:
         sender = await event.get_sender()
         # todo attachments
-        return self.json_dumps({
-            'username': sender.username,
+        username = sender.phone if sender.username is None else sender.username
+        return json.dumps({
+            'username': username,
             'text': event.message.text if event.message.text else None,
             'attachment': event.message.file if event.message.file else None,
         })
