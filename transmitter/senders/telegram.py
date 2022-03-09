@@ -1,7 +1,6 @@
 import asyncio
-import json
 import sys
-from typing import Optional
+from typing import Optional, Dict
 
 from telethon import events, errors
 
@@ -10,25 +9,28 @@ from .own_telethon.telegram_client import OwnTelegramClient
 
 class Telegram:
     __slots__ = ['id', 'hash', 'phone', 'dispatcher_queue', 'name', 'connect',
-                 'telegram_queue']
+                 'telegram_queue', 'in_queue_name', 'out_queue_name']
 
-    def __init__(self, id: int, hash: str, phone: str,
-                 dispatcher_queue, telegram_queue) -> None:
+    def __init__(self, phone: str) -> None:
+        self.phone = phone
+        self.name = f'telegram.{self.phone}'
+
+        self.in_queue_name = f'in.{self.name}' # todo
+        self.out_queue_name = f'out.{self.name}' # todo
+
+    async def __call__(self, id: int, hash: str, dispatcher_queue,
+                       telegram_queue):
         self.id = id
         self.hash = hash
-        self.phone = phone
         self.dispatcher_queue = dispatcher_queue
         self.telegram_queue = telegram_queue
-        self.name = f'telegram{self.phone}'
-
-    async def __call__(self):
         await self.login()
         await self.listen()
 
-    async def get_code(self) -> str:
-        await self.add_to_queue(json.dumps({
+    async def get_code(self) -> int:
+        await self.add_to_queue({
             'phone': self.phone,
-        }))
+        })
         return await self.listen_queue()
 
     async def login(self) -> None:
@@ -41,12 +43,12 @@ class Telegram:
                 errors.PhoneCodeHashEmptyError,
                 errors.PhoneCodeInvalidError) as e:
             print(e)
-            await self.add_to_queue(json.dumps({
+            await self.add_to_queue({
                 'id': self.id,
                 'hash': self.hash,
                 'phone': self.phone,
                 'error': 'wrong code',
-            }))
+            })
             await self.stop()
         except KeyboardInterrupt:
             await self.stop()
@@ -82,29 +84,31 @@ class Telegram:
 
     async def listen_queue(self) -> Optional[int]:
         while True:
-            _queue, message = await self.telegram_queue.listen(self.name)
-            _queue, message = _queue.decode(), json.loads(message.decode())
+            _queue, message = await self.telegram_queue.listen(
+                self.out_queue_name)
             if 'code' in message.keys():
                 return int(message['code'])
-            if 'username' in message.keys() and 'text' in message.keys():
-                await self.send_message(message['username'],
+            if 'user' in message.keys() and 'text' in message.keys():
+                await self.send_message(message['user'],
                                         message['text'])
 
     async def get_messages(self) -> None:  # todo get history of messages
         pass
 
-    async def send_message(self, username, text) -> None:
-        await self.connect.send_message(username, text)
+    async def send_message(self, user, text) -> None:
+        await self.connect.send_message(user, text)
 
-    async def message_handler(self, event) -> str:
+    @staticmethod
+    async def message_handler(event) -> Dict:
         sender = await event.get_sender()
         # todo attachments
-        username = sender.phone if sender.username is None else sender.username
-        return json.dumps({
-            'username': username,
+        user = sender.phone if sender.username is None else sender.username
+
+        return {
+            'user': sender.id if user is None else user,
             'text': event.message.text if event.message.text else None,
             'attachment': event.message.file if event.message.file else None,
-        })
+        }
 
     async def add_to_queue(self, text) -> None:
-        await self.dispatcher_queue.add(self.name, text)
+        await self.dispatcher_queue.add(self.in_queue_name, text)

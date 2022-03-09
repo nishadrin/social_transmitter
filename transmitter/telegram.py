@@ -1,10 +1,8 @@
-import asyncio
 import argparse
+import asyncio
 
+from queues import RabbitQueue
 from senders.telegram import Telegram
-
-from services.dispatcher import Dispatcher
-from social_transmitter.transmitter.queues import RabbitQueue
 
 
 async def main():
@@ -14,18 +12,13 @@ async def main():
     parser.add_argument('phone', type=str, help='client phone')
     args = parser.parse_args()
 
-    dispatcher_queue = RabbitQueue(port=25672, dispatcher=True)
+    dispatcher_queue = RabbitQueue(port=5672, dispatcher=True)
     await dispatcher_queue()
-    # надо бы разбить на 2 run.py
-    telegram_queue = RabbitQueue(port=25672)
+    telegram_queue = RabbitQueue(port=5672)
     await telegram_queue()
 
-    dispatcher = Dispatcher(dispatcher_queue, telegram_queue)
-    await dispatcher()
-
-    telegram = Telegram(args.id, args.hash, args.phone,
-                        dispatcher_queue, telegram_queue)
-    await telegram()
+    telegram = Telegram(args.phone)
+    await telegram(args.id, args.hash, dispatcher_queue, telegram_queue)
     # await telegram.logout()
 
 
