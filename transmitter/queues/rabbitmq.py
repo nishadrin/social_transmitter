@@ -35,8 +35,7 @@ class RabbitQueue:
         queue = await self.channel.declare_queue(name,
                                                  auto_delete=auto_delete,
                                                  durable=True, )
-        while True:
-            return await self.consume(queue)
+        return await self.consume(queue)
 
     async def add(self, name, data) -> None:
         await self.produce(name, data)
@@ -49,6 +48,7 @@ class RabbitQueue:
                                                  auto_delete=True,
                                                  durable=True, )
         await queue.bind(exchange, queue.name)
+        print(data)
         await exchange.publish(
             Message(json.dumps(data).encode(), content_type='text/plain'),
             routing_key=queue.name,
@@ -58,4 +58,5 @@ class RabbitQueue:
         async with queue.iterator() as queue_iter:
             async for message in queue_iter:
                 async with message.process():
+                    print(queue.name, json.loads(message.body.decode()))
                     return queue.name, json.loads(message.body.decode())
