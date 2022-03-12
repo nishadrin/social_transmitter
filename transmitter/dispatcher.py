@@ -8,7 +8,7 @@ from queues.rabbitmq import RabbitQueue
 async def main():
     parser = argparse.ArgumentParser(description='client data')
     parser.add_argument('phone', type=str, help='client phone')
-    parser.add_argument('platform', default='telegram', type=str,
+    parser.add_argument('--platform', default='telegram', type=str,
                         help='client platform')
     args = parser.parse_args()
 
