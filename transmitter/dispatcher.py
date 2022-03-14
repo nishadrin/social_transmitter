@@ -12,20 +12,22 @@ async def main():
                         help='client platform')
     args = parser.parse_args()
 
-    dispatcher_queue = RabbitQueue(port=5672, dispatcher=True)
-    telegram_queue = RabbitQueue(port=5672)
+    in_queue = RabbitQueue(port=5672, dispatcher=True)
+    await in_queue.start()
+
+    out_queue = RabbitQueue(port=5672)
+    await out_queue.start()
 
     name = f'{args.platform}.{args.phone}'
+    dispatcher = Dispatcher(in_queue, out_queue, name)
 
-    dispatcher = Dispatcher(dispatcher_queue, telegram_queue, name)
-
-    while True:
-        await dispatcher_queue()
-        await telegram_queue()
-        await dispatcher()
+    io_loop = asyncio.get_event_loop()
+    in_listen = io_loop.create_task(dispatcher.listen_queue())
+    out_data = io_loop.create_task(dispatcher.send_handler())
+    await asyncio.gather(out_data, in_listen)
 
 
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
-    loop.close()
+    loop.create_task(main())
+    loop.run_forever()

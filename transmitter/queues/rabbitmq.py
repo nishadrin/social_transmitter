@@ -17,9 +17,6 @@ class RabbitQueue:
         self.url += '/'
         self.dispatcher = dispatcher
 
-    async def __call__(self) -> None:
-        await self.start()
-
     async def start(self) -> None:
         try:
             self.connect = await connect_robust(self.url)
@@ -35,12 +32,17 @@ class RabbitQueue:
         queue = await self.channel.declare_queue(name,
                                                  auto_delete=auto_delete,
                                                  durable=True, )
-        return await self.consume(queue)
+
+        async with queue.iterator() as queue_iter:
+            async for message in queue_iter:
+                async with message.process():
+                    if queue.name in message.body.decode():
+                        break
+
+                    # print(f'\nВ {queue.name} добавили {json.loads(message.body.decode())}')
+                    return queue.name, json.loads(message.body.decode())
 
     async def add(self, name, data) -> None:
-        await self.produce(name, data)
-
-    async def produce(self, name: str, data: Dict) -> None:
         exchange = await self.channel.declare_exchange(name,
                                                        ExchangeType.TOPIC,
                                                        durable=True, )
@@ -48,15 +50,8 @@ class RabbitQueue:
                                                  auto_delete=True,
                                                  durable=True, )
         await queue.bind(exchange, queue.name)
-        print(data)
+        # print(f'\nДобавлено {data} в очередь {queue.name}')
         await exchange.publish(
             Message(json.dumps(data).encode(), content_type='text/plain'),
             routing_key=queue.name,
         )
-
-    async def consume(self, queue) -> Tuple[str, Dict]:
-        async with queue.iterator() as queue_iter:
-            async for message in queue_iter:
-                async with message.process():
-                    print(queue.name, json.loads(message.body.decode()))
-                    return queue.name, json.loads(message.body.decode())

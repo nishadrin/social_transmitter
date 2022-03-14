@@ -1,75 +1,66 @@
 import asyncio
-import sys
 from typing import Dict
 
 
 class Dispatcher:
-    __slots__ = ['dispatcher_queue', 'telegram_queue', '_handler',
-                 'in_queue_name', 'out_queue_name', 'users', 'phone',
-                 'is_register', ]
+    __slots__ = ['in_queue', 'out_queue', '_handler', 'in_queue_name',
+                 'out_queue_name', 'users', 'phone', 'is_register',
+                 'is_request_phone', ]
 
-    def __init__(self, dispatcher_queue, telegram_queue, name) -> None:
-        self.dispatcher_queue = dispatcher_queue
-        self.telegram_queue = telegram_queue
-        self.users = []
+    def __init__(self, in_queue, out_queue, name) -> None:
+        self.in_queue = in_queue
+        self.out_queue = out_queue
+        self.users = set()
         self.phone = None
         self.is_register = False
+        self.is_request_phone = False
 
-        self.in_queue_name = f'in.{name}' # todo
-        self.out_queue_name = f'out.{name}' # todo
-
-    async def __call__(self):
-        await self.listen()
+        self.in_queue_name = f'in.{name}'  # todo
+        self.out_queue_name = f'out.{name}'  # todo
 
     @staticmethod
-    async def get_data(text):
+    async def get_data(text) -> str:
         return await asyncio.get_event_loop().run_in_executor(None, input, text)
 
-    async def listen(self):
-        try:
-            loop = asyncio.get_event_loop()
-            listen_queue = loop.create_task(self.listen_queue())
-            send_handler = loop.create_task(self.send_handler())
-            # await listen_queue
-        except Exception:
-            loop.close()
-            raise Exception
-
-
-    async def send_handler(self):
-        if not self.is_register:
-            await self.send_code(message['phone'])
-        else:
-            print(self.users)
-            user = self.get_data('Введите данные пользователя: ')
-            await self.send_input_message()
-
-    async def send_code(self, phone):
-        text = await self.get_data('Введите код: ')
-        await self.add_to_queue(self.out_queue_name, {
-            'phone': phone,
-            'code': text,
-        })
-
-    async def send_input_message(self):
-        attachment = None
-        text = await self.get_data(f'Ответить клиенту {self.user}: ')
-        await self.add_to_queue(self.out_queue_name, {
-            'user': self.user,
-            'text': text,
-            'attachment': attachment,
-        })
+    async def add_to_queue(self, name: str, data: Dict) -> None:
+        await self.out_queue.add(name, data)
 
     async def listen_queue(self):
-        _queue, message = await self.dispatcher_queue.listen(
-            self.in_queue_name)
+        stop = False
+        while not stop:
+            _queue, message = await self.in_queue.listen(self.in_queue_name)
 
-        if 'phone' in message.keys():
-            print(f'{message["phone"]} ожидает код подтверждения')
-        if 'user' in message.keys():
-            self.is_register = True
-            self.users.append(message["user"])
-            print(f'Клиент {message["user"]}: {message["text"]}')
+            if 'phone' in message.keys():
+                self.phone = message["phone"]
+                self.is_register = message["is_register"]
+                if not self.is_register:
+                    print(f'\n{message["phone"]} ожидает код подтверждения')
 
-    async def add_to_queue(self, name, text) -> None:
-        await self.telegram_queue.add(name, text)
+            if 'user' in message.keys():
+                self.users.add(message["user"])
+                print(f'\nКлиент {message["user"]}: {message["text"]}')
+
+    async def send_handler(self):
+        while True:
+            if self.phone is None:
+                if not self.is_request_phone:
+                    await self.add_to_queue(self.out_queue_name, {
+                        'phone': self.phone,
+                    })
+                    self.is_request_phone = True
+                else:
+                    await asyncio.sleep(0)
+            elif not self.is_register:
+                text = await self.get_data('Введите код: ')
+                await self.add_to_queue(self.out_queue_name, {
+                    'phone': self.phone,
+                    'code': text,
+                })
+            else:
+                print(f'\nВсе пользователи: {self.users}')
+                user = await self.get_data('Введите данные пользователя: ')
+                text = await self.get_data(f'Ответить клиенту {user}: ')
+                await self.add_to_queue(self.out_queue_name, {
+                    'user': user,
+                    'text': text,
+                })
