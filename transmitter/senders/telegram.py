@@ -7,48 +7,45 @@ from telethon import events, errors
 from .own_telethon.telegram_client import OwnTelegramClient
 
 
-class Telegram:
-    __slots__ = ['id', 'hash', 'phone', 'dispatcher_queue', 'name', 'connect',
-                 'telegram_queue', 'in_queue_name', 'out_queue_name']
+class Telegram(OwnTelegramClient):
+    __slots__ = ['id', 'hash', 'phone', 'connect', 'name', 'in_queue',
+                 'out_queue', 'in_queue_name', 'out_queue_name', 'in_data', ]
 
-    def __init__(self, phone: str) -> None:
-        self.phone = phone
-        self.name = f'telegram.{self.phone}'
-
-        self.in_queue_name = f'in.{self.name}' # todo
-        self.out_queue_name = f'out.{self.name}' # todo
-
-    async def __call__(self, id: int, hash: str, dispatcher_queue,
-                       telegram_queue):
+    def __init__(self, phone: str, id: int, hash: str, in_queue,
+                 out_queue) -> None:
         self.id = id
         self.hash = hash
-        self.dispatcher_queue = dispatcher_queue
-        self.telegram_queue = telegram_queue
-        await self.login()
-        await self.listen()
+        self.phone = phone
+        self.in_queue = in_queue
+        self.out_queue = out_queue
 
-    async def get_code(self) -> int:
-        await self.add_to_queue({
+        self.name = f'telegram.{self.phone}'
+        self.in_data = {}
+        self.in_queue_name = f'in.{self.name}'  # todo
+        self.out_queue_name = f'out.{self.name}'  # todo
+
+    async def send_reg_status(self, is_register=True):
+        data = {
             'phone': self.phone,
-        })
-        return await self.listen_queue()
+            'is_register': is_register,
+        }
+        await self.in_queue.add(self.in_queue_name, data)
 
     async def login(self) -> None:
         try:
             self.connect = OwnTelegramClient(self.name, self.id, self.hash)
-            await self.connect.start(phone=self.phone,
-                                     code_callback=self.get_code)
+
+            if not self.connect._authorized or self.connect._authorized is None:
+                await self.send_reg_status(is_register=False)
+                await self.connect.start(phone=self.phone,
+                                         code_callback=self.listen_queue)
+            else:
+                await self.send_reg_status()
         except (errors.PhoneCodeEmptyError,
                 errors.PhoneCodeExpiredError,
                 errors.PhoneCodeHashEmptyError,
                 errors.PhoneCodeInvalidError) as e:
             print(e)
-            await self.add_to_queue({
-                'id': self.id,
-                'hash': self.hash,
-                'phone': self.phone,
-                'error': 'wrong code',
-            })
             await self.stop()
         except KeyboardInterrupt:
             await self.stop()
@@ -63,52 +60,34 @@ class Telegram:
     async def stop(self) -> None:
         await self.connect.disconnect()
 
-    async def listen(self) -> None:
-        try:
-            loop = asyncio.get_event_loop()
-            telegram = loop.create_task(self.listen_telegram())
-            queue = loop.create_task(self.listen_queue())
-            await telegram
-            await queue
-        except Exception:
-            loop.stop()
-            loop.close()
-            raise Exception
-
     async def listen_telegram(self) -> None:
         connect = self.connect
 
         @connect.on(events.NewMessage(incoming=True))
         async def input_handler(event):
-            await self.add_to_queue(await self.message_handler(event))
+            sender = await event.get_sender()
+            user = sender.phone if sender.username is None else sender.username
+            user = sender.id if user is None else user
+            text = event.message.text if event.message.text else None
+            data = {
+                'user': user,
+                'text': text,
+            }
+            await self.in_queue.add(self.in_queue_name, data)
 
-    async def listen_queue(self) -> Optional[int]:
-        while True:
-            _queue, message = await self.telegram_queue.listen(
-                self.out_queue_name)
-            if 'code' in message.keys():
-                return int(message['code'])
-            if 'user' in message.keys() and 'text' in message.keys():
-                await self.send_message(message['user'],
-                                        message['text'])
-
-    async def get_messages(self) -> None:  # todo get history of messages
-        pass
+    async def listen_queue(self):
+        stop = False
+        while not stop:
+            _queue, data = await self.out_queue.listen(self.out_queue_name)
+            if 'user' in data.keys() and 'text' in data.keys():
+                await self.send_message(data['user'], data['text'])
+            if 'phone' in data.keys():
+                if data['phone'] is None:
+                    await self.send_reg_status()
+                elif 'code' in data.keys():
+                    await self.send_reg_status()
+                    stop = True
+                    return data['code']
 
     async def send_message(self, user, text) -> None:
         await self.connect.send_message(user, text)
-
-    @staticmethod
-    async def message_handler(event) -> Dict:
-        sender = await event.get_sender()
-        # todo attachments
-        user = sender.phone if sender.username is None else sender.username
-
-        return {
-            'user': sender.id if user is None else user,
-            'text': event.message.text if event.message.text else None,
-            'attachment': event.message.file if event.message.file else None,
-        }
-
-    async def add_to_queue(self, text) -> None:
-        await self.dispatcher_queue.add(self.in_queue_name, text)
