@@ -1,6 +1,4 @@
-import asyncio
 import sys
-from typing import Optional, Dict
 
 from telethon import events, errors
 
