@@ -6,7 +6,7 @@ Python 3.6.9+
 
 `python3 telegram.py id hash phone`
 
-Формат данных:
+Данные:
 
 - phone 79123456789
 - id и hash можно получить по инструкции:
