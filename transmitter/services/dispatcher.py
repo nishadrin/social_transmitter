@@ -5,7 +5,7 @@ from typing import Dict
 class Dispatcher:
     __slots__ = ['in_queue', 'out_queue', '_handler', 'in_queue_name',
                  'out_queue_name', 'users', 'phone', 'is_register',
-                 'is_request_phone', ]
+                 'is_request_phone', 'is_send_code', ]
 
     def __init__(self, in_queue, out_queue, name) -> None:
         self.in_queue = in_queue
@@ -14,6 +14,7 @@ class Dispatcher:
         self.phone = None
         self.is_register = False
         self.is_request_phone = False
+        self.is_send_code = False
 
         self.in_queue_name = f'in.{name}'  # todo
         self.out_queue_name = f'out.{name}'  # todo
@@ -50,12 +51,13 @@ class Dispatcher:
                     self.is_request_phone = True
                 else:
                     await asyncio.sleep(0)
-            elif not self.is_register:
+            elif not self.is_register and not self.is_send_code:
                 text = await self.get_data('Введите код: ')
                 await self.add_to_queue(self.out_queue_name, {
                     'phone': self.phone,
                     'code': text,
                 })
+                self.is_send_code = True
             else:
                 print(f'\nВсе пользователи: {self.users}')
                 user = await self.get_data('Введите данные пользователя: ')
