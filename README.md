@@ -1,10 +1,12 @@
 Python 3.6.9+
 
 Запуск 2-мя файлами:
-- python3 dispetchet.py phone
-- python3 telegram.py id hash phone
 
-Формат данных:
+`python3 dispetchet.py phone`
+
+`python3 telegram.py id hash phone`
+
+Данные:
 
 - phone 79123456789
 - id и hash можно получить по инструкции:
