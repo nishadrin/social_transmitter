@@ -4,7 +4,13 @@ Python 3.6.9+
 - python3 dispetchet.py phone
 - python3 telegram.py id hash phone
 
-Настройки RabbitMQ:
+RabbitMQ
+
+Запуск:
+
+`sudo docker run --rm -it --hostname my-rabbit -p 15672:15672 -p 5672:5672 rabbitmq:3-management`
+
+Настройки:
 - ip: 127.0.0.1
 - port: 5672
 - username: guest
