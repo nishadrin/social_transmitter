@@ -7,6 +7,10 @@ from aio_pika import ExchangeType, connect_robust, Message
 
 
 class RabbitQueue:
+    """
+    Класс для запуска и прослушивания очереди.
+    """
+
     __slots__ = ['url', 'connect', 'channel', 'dispatcher', ]
 
     def __init__(self, url='127.0.0.1', port=None, username='guest',
@@ -18,6 +22,9 @@ class RabbitQueue:
         self.dispatcher = dispatcher
 
     async def start(self) -> None:
+        """
+        Запускает очередь и создает канал.
+        """
         try:
             self.connect = await connect_robust(self.url)
             self.channel = await self.connect.channel()
@@ -29,6 +36,9 @@ class RabbitQueue:
         await self.connect.close()
 
     async def listen(self, name, auto_delete=True) -> Tuple[str, Dict]:
+        """
+        Слушает очередь.
+        """
         queue = await self.channel.declare_queue(name,
                                                  auto_delete=auto_delete,
                                                  durable=True, )

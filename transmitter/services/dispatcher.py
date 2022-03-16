@@ -3,6 +3,10 @@ from typing import Dict
 
 
 class Dispatcher:
+    """
+    Обрабатывает входящие данные из очереди и отправляет сообщения от менеджера.
+    """
+
     __slots__ = ['in_queue', 'out_queue', '_handler', 'in_queue_name',
                  'out_queue_name', 'users', 'phone', 'is_register',
                  'is_request_phone', 'is_send_code', ]
@@ -21,12 +25,21 @@ class Dispatcher:
 
     @staticmethod
     async def get_data(text) -> str:
+        """
+        Асинхронный запуск функции input для отправки данных в очередь.
+        """
         return await asyncio.get_event_loop().run_in_executor(None, input, text)
 
     async def add_to_queue(self, name: str, data: Dict) -> None:
+        """
+        добавить в очередь данные
+        """
         await self.out_queue.add(name, data)
 
     async def listen_queue(self):
+        """
+        Прослушивает очередь и выполняет логику, согласно запросу из очереди.
+        """
         stop = False
         while not stop:
             _queue, message = await self.in_queue.listen(self.in_queue_name)
@@ -42,6 +55,9 @@ class Dispatcher:
                 print(f'\nКлиент {message["user"]}: {message["text"]}')
 
     async def send_handler(self):
+        """
+        Отправляет данные в очередь, согласно логики.
+        """
         while True:
             if self.phone is None:
                 if not self.is_request_phone:
