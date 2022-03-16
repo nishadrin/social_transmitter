@@ -1,8 +1,10 @@
 Python 3.6.9+
 
 Запуск 2-мя файлами:
-- python3 dispetchet.py phone
-- python3 telegram.py id hash phone
+
+`python3 dispetchet.py phone`
+
+`python3 telegram.py id hash phone`
 
 Формат данных:
 
