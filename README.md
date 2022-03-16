@@ -4,6 +4,15 @@ Python 3.6.9+
 - python3 dispetchet.py phone
 - python3 telegram.py id hash phone
 
+Формат данных:
+
+- phone 79123456789
+- id и hash можно получить по инструкции:
+    1. авторизируемся в [telegram](https://my.telegram.org)
+    2. переходим в [API development tools](https://my.telegram.org/apps)
+    3. создаем новый app
+    4. нажать на созданный app
+
 RabbitMQ
 
 Запуск:
